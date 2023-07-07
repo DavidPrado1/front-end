@@ -1,0 +1,385 @@
+<template>
+    
+    <v-layout align-start>
+        
+        <v-flex>
+            <v-autocomplete
+                v-model="test.semestre"
+                label="Semestre"
+                :items="semestres"
+                dense
+                filled
+            ></v-autocomplete>
+            <v-btn
+                olor="primary"
+                dark
+                class="mb-2"
+                v-on="on"
+                @click="cargarTabla(test)"
+                >
+                Mostrar Cursos del Semestre
+            </v-btn>
+
+            <v-divider></v-divider>
+            <v-data-table
+            :headers="headers"
+            :items="cursossemestres"
+            class="mx-auto"
+            >
+            <template v-slot:top>
+                <v-toolbar
+                flat
+                >
+                <v-toolbar-title>semestres</v-toolbar-title>
+                <v-divider
+                    class="mx-4"
+                    inset
+                    vertical
+                ></v-divider>
+                <v-spacer></v-spacer>
+                <v-dialog
+                    v-model="dialog"
+                    max-width="650px"
+                >
+                    <template v-slot:activator="{ on, attrs }">
+                    <v-btn
+                        color="primary"
+                        dark
+                        class="mb-2"
+                        v-bind="attrs"
+                        v-on="on"
+                    >
+                        Ingresar nueva entrada
+                    </v-btn>
+                    </template>
+                    <v-card>
+                    <v-card-title>
+                        <span class="text-h5">{{ formTitle }}</span>
+                    </v-card-title>
+        
+                    <v-card-text>
+                        <v-container>
+                        <v-row>
+                            <v-col
+                            cols="12"
+                            sm="6"
+                            md="4"
+                            >
+                            <v-text-field
+                                v-model="editedItem.semestre"
+                                label="Semestre"
+                                clearable
+                                hide-details="auto"
+                                readonly 
+                            ></v-text-field>
+                            </v-col>
+                            <v-col
+                            cols="12"
+                            sm="6"
+                            md="4"
+                            >
+                            <v-autocomplete
+                                v-model="editedItem.curso"
+                                label="Curso"
+                                :items="options"
+                                dense
+                                filled
+                            ></v-autocomplete>
+                            </v-col>
+                            <v-col
+                            cols="12"
+                            sm="6"
+                            md="4"
+                            >
+                            <v-text-field
+                                v-model="editedItem.profesor"
+                                label="Profesor"
+                            ></v-text-field>
+                            </v-col>
+                            <v-col
+                            cols="12"
+                            sm="6"
+                            md="4"
+                            >
+                            <v-text-field
+                                v-model="editedItem.fecha_inicio"
+                                label="Inicio"
+                                type = "date"
+                            ></v-text-field>
+                            </v-col>
+                            <v-col
+                            cols="12"
+                            sm="6"
+                            md="4"
+                            >
+                            <v-text-field
+                                v-model="editedItem.fecha_fin"
+                                label="Termino"
+                                type = "date"
+                            ></v-text-field>
+                            </v-col>
+                            
+                        </v-row>
+                        </v-container>
+                    </v-card-text>
+        
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn
+                        color="blue darken-1"
+                        text
+                        @click="close"
+                        >
+                        Cancel
+                        </v-btn>
+                        <v-btn
+                        color="blue darken-1"
+                        text
+                        @click="save"
+                        >
+                        Save
+                        </v-btn>
+                    </v-card-actions>
+                    </v-card>
+                </v-dialog>
+                <v-dialog v-model="dialogDelete" max-width="500px">
+                    <v-card>
+                    <v-card-title class="text-h5">Are you sure you want to delete this item?</v-card-title>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn color="blue darken-1" text @click="closeDelete">Cancel</v-btn>
+                        <v-btn color="blue darken-1" text @click="deleteItemConfirm">OK</v-btn>
+                        <v-spacer></v-spacer>
+                    </v-card-actions>
+                    </v-card>
+                </v-dialog>
+                </v-toolbar>
+            </template>
+            <template v-slot:item.actions="{ item }">
+                <v-icon
+                small
+                class="mr-2"
+                @click="editItem(item)"
+                >
+                mode_edit
+                </v-icon>
+                <v-icon
+                small
+                @click="deleteItem(item)"
+                >
+                delete
+                </v-icon>
+            </template>
+            <template v-slot:no-data>
+                <v-btn
+                color="primary"
+                @click="initialize"
+                >
+                Reset
+                </v-btn>
+            </template>
+            </v-data-table>
+        </v-flex>
+    </v-layout>
+</template>
+    
+    <script>
+    import axios from 'axios'
+    export default{    
+        data(){ 
+            return { 
+                test:{},
+                postURL: 'http://localhost:5000',
+                dialog: false,
+                dialogDelete: false,
+                test: {},
+                carreras: ['Ing. Software', 'Adm. Empresas', 'Ing. Comercial', 'Derecho'],
+                imgface: "",
+                headers: [
+                {
+                    text: 'ID',
+                    align: 'start',
+                    value: 'id',
+                    show: false,
+                },
+                { text: 'Semestre', value: 'semestre' },
+                { text: 'Curso', value: 'curso' },
+                { text: 'Profesor', value: 'profesor' },
+                { text: 'Inicio', value: 'fecha_inicio' },
+                { text: 'Termino', value: 'fecha_fin' },
+                { text: 'Acciones', value: 'actions', sortable: false },
+                ],
+                semestres: [],
+                cursossemestres: [],
+                editedIndex: -1,
+                editedItem: {
+                id:'',
+                semestre: '',
+                curso: '',
+                profesor: '',
+                fecha_inicio: '',
+                fecha_fin: '',
+                
+                },
+                defaultItem: {
+                id:'',
+                semestre: '',
+                curso: '',
+                profesor: '',
+                fecha_inicio: '',
+                fecha_fin: '',
+                },
+                options: []
+            }
+        },
+        computed: {
+            formTitle () {
+            return this.editedIndex === -1 ? 'New Item' : 'Edit Item'
+            },
+        },
+
+        watch: {
+            dialog (val) {
+            val || this.close()
+            },
+            dialogDelete (val) {
+            val || this.closeDelete()
+            },
+        },
+
+        created () {
+            this.initialize()
+        },
+        methods:{
+            
+            initialize () {
+                axios.post(this.postURL + '/semestres').then((res) => {  
+                    console.log(res.data);
+                    this.semestres = res.data;            
+                })
+                .catch((error) => {
+                    console.log(error)
+                })
+
+                },
+
+                cargarTabla () {
+                this.editedItem.semestre = this.test.semestre;
+                var config_request={
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                }
+                    
+                axios.post(this.postURL + '/cursosDeSemestres',this.test,{config_request}).then((res) => {  
+                    console.log(res.data);
+                    this.cursossemestres = res.data;            
+                })
+                .catch((error) => {
+                    console.log(error)
+                })
+                axios.post(this.postURL + '/cursosnames').then((res) => {  
+                    console.log(res.data);
+                    this.options = res.data;            
+                })
+                .catch((error) => {
+                    console.log(error)
+                })
+                },
+
+                editItem (item) {
+                this.editedIndex = this.semestres.indexOf(item)
+                this.editedItem = Object.assign({}, item)
+                this.dialog = true
+                },
+
+                deleteItem (item) {
+                this.editedIndex = this.semestres.indexOf(item)
+                this.editedItem = Object.assign({}, item)
+                this.dialogDelete = true
+                },
+
+                deleteItemConfirm () {
+                    var config_request={
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    }          
+                    axios.post(this.postURL + '/delete_cursoDeSemestre', this.editedItem,{config_request})
+                        .then(res => {                      
+                            console.log(res.data);
+                            
+                        })
+                        .catch((error) => {
+                            console.log(error)
+                        });
+                    this.cursossemestres.splice(this.editedIndex, 1)
+                
+                this.closeDelete()
+                },
+
+                close () {
+                this.dialog = false
+                this.$nextTick(() => {
+                    this.editedItem = Object.assign({}, this.defaultItem)
+                    this.editedItem.semestre = this.test.semestre;
+                    this.editedIndex = -1
+                })
+                },
+
+                closeDelete () {
+                this.dialogDelete = false
+                this.$nextTick(() => {
+                    this.editedItem = Object.assign({}, this.defaultItem)
+                    this.editedItem.semestre = this.test.semestre;
+                    this.editedIndex = -1
+                })
+                },
+
+                save () {
+                if (this.editedIndex > -1) {
+                    var config_request={
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    }
+                    axios.patch(this.postURL + '/update_cursoDeSemestre', this.editedItem, { config_request })
+                    .then(res => {                                         
+                        console.log(res.data);
+                    })
+                    .catch((error) => {
+                        console.log(error)
+                    });
+                    Object.assign(this.semestres[this.editedIndex], this.editedItem)
+                    this.editedItem = Object.assign({}, this.defaultItem)
+                    this.editedItem.semestre = this.test.semestre;
+                } else {
+                    var config_request={
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    }
+                    axios.put(this.postURL + '/create_cursoDeSemestre', this.editedItem, { config_request })
+                        .then(res => {                                         
+                            console.log(res.data);
+
+                        })
+                        .catch((error) => {
+                            console.log(error)
+                        });
+                    
+        
+                    this.cursossemestres.push(this.editedItem)
+                    
+                    this.editedItem = Object.assign({}, this.defaultItem)
+                    this.editedItem.semestre = this.test.semestre;
+                }
+                this.close()
+                },
+        },
+
+    
+    }
+    </script>
+    
+    <style>
+        .tasks{
+            background-color: #cccccc;
+        }
+    </style>
